@@ -1,4 +1,4 @@
-# Memory management using Smart Pointers in C++
+# Memory management using Smart Pointers in C++ - Part 1
 
 One of the major strengths and weaknesses of both C and C++ are pointers. C++ has many benefits of pointers but also several pitfalls if memory management is not performed correctly. Pointers require explicit management of the resources to which they refer.  For example, a pointer that holds the address of dynamically allocated memory retrieved using `new` requires the programmer to release that memory using `delete`; failing to do so results in dangling pointers or memory leaks which are difficult to find.
 
@@ -53,7 +53,7 @@ void someFunction()
 ```
 Assuming the function `someFunction()` is getting called infinite times and the `obj` validation fails every time. This leads to the situations when programmers keep allocating new memory and do not lose any pointers to it, but keep pointers to objects that the program is not going to use anymore (dangling pointer). This is not formally a memory leak but leads to the same situation: *a program running out of memory*
 
-<add image to out of memory>
+![out_of_memory](out_of_memory.png "Out of memory")
 
 Even if we use `new` and `delete` pairs correctly we may encounter a scenario of memory leak. Lets look at the below example.
 
