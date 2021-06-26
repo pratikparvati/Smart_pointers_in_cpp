@@ -125,7 +125,7 @@ To use `shared_ptr`like a raw pointer the arrow operator(`->`) and dereferencing
 sp->myMethod();
 (*sp)->myMethod();
 ```
-You can call a `reset()` member function, which will decrement the reference count and delete the pointed-to object if appropriate, and result in an empty `shared_ptr` that is just like a default-constructed one. You can also reset a `shared_ptr` by assigning it the value `nullptr.
+You can call a `reset()` member function, which will decrement the reference count and delete the pointed-to object if appropriate, and result in an empty `shared_ptr` that is just like a default-constructed one. You can also reset a `shared_ptr` by assigning it the value `nullptr`.
 
 ```C++
 sp.reset();
