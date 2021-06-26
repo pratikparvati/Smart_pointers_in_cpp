@@ -72,6 +72,7 @@ int main()
 {
     Base* base = new Derived;
     delete base; // prints Base::~Base(), hence Derived class object is partially destructed
+    return EXIT_SUCCESS;
 }
 ```
 Of course the fix for the issue is doing the binding at run time polymorphically (dynamic binding) i.e, using virtual destructor in the base class, which prints
@@ -102,7 +103,8 @@ struct Derived: public Base
 
 int main()
 {
-    std::shared_ptr<Base> base(new Derived);;
+    std::shared_ptr<Base> base(new Derived);
+    return EXIT_SUCCESS;
 }
 
 /*
@@ -165,6 +167,50 @@ void foo()
 }
 // sp1, sp2, sp3 go out of scope, decrementing count, delete the MyClass if last
 ```
+#### Casting `shared_ptr`
+
+Having two classes one that inherits from another, when trying to assign a smart pointer variable of the derived class to a smart pointer variable of the base class it is required to use `std::static_pointer_cast` in place of the normal `static_cast` (used with raw pointers). It will be useful to remove the suggestion to use the `static_cast` and include the suggestion to use the `std::static_pointer_cast`.
+
+For example:
+
+```C++
+
+#include <memory>
+#include <iostream>
+ 
+class Base{
+ public:
+    Base(){std::cout << "Base::Base()" << std::endl;}
+    ~Base(){std::cout << "Base::~Base()" << std::endl;}
+    void print(){std::cout << "Base::print()" << std::endl;}
+};
+ 
+class Derived:public Base{
+ public:
+    Derived(){std::cout << "Derived::Derived()" << std::endl;}
+    ~Derived(){std::cout << "Derived::~Derived()" << std::endl;}
+    void print(){std::cout << "Derived::print()" << std::endl;}
+};
+ 
+int main()
+{
+    std::shared_ptr<Base> b_ptr = std::make_shared<Derived>();
+    b_ptr->print();
+    auto d_ptr = std::static_pointer_cast<Derived>(b_ptr);
+    d_ptr->print();
+    return EXIT_SUCCESS;
+}
+  
+
+/* OUTPUT
+Base::Base()
+Derived::Derived()
+Base::print()
+Derived::print()
+Derived::~Derived()
+Base::~Base()
+*/
+```
 
 #### Getting better memory allocation performance from `shared_ptr`
 
@@ -225,6 +271,7 @@ int main()
     shareMe->classMethod();
 
     std::cout << std::endl;
+    return EXIT_SUCCESS;
 }
 ```
 #### `std::shared_ptr` as function argument
@@ -252,6 +299,7 @@ int main()
     functionbyCopy(sp);
 
     std::cout << "sp.use_count(): " << sp.use_count() << std::endl; // prints 1
+    return EXIT_SUCCESS;
 }
 ```
 
@@ -282,6 +330,62 @@ struct MyClass3 {
 
 ![cyclic reference problem](cyclic_reference_problem.png)
 
+Lets look at an example that causes cyclic reference problem
+
+```C++
+#include <memory>
+#include <iostream>
+
+struct MyClassB;
+struct MyClassA
+{
+    std::shared_ptr<MyClassB> b;
+    ~MyClassA() { std::cout << "MyClassA::~MyClassA()\n"; }
+};
+
+struct MyClassB
+{
+    std::shared_ptr<MyClassA> a;
+    ~MyClassB() { std::cout << "MyClassB::~MyClassB()\n"; }
+};
+
+void useClassAnClassB()
+{
+    auto a = std::make_shared<MyClassA>();
+    auto b = std::make_shared<MyClassB>();
+    a->b = b;
+    b->a = a;
+}
+
+int main()
+{
+    useClassAnClassB();
+    std::cout << "Finished using A and B\n";
+}
+
+/*OUTPUT
+Finished using A and B
+*/
+```
+If both references are `shared_ptr` then that says `MyClassA` has ownership of `MyClassB` and `MyClassB` has ownership of `MyClassA`, which should ring alarm bells. In other words, `MyClassA` keeps `MyClassB` alive and `MyClassB` keeps `MyClassA` alive.
+
+In this example the instances `a` and `b` are only used in the `useClassAnClassB()` function so we would like them to be destroyed when the function ends but as we can see when we run the program the destructors are not called.
+
+The memory leak summary is as shown below.
+
+``` bash
+==1969133==
+==1969133== LEAK SUMMARY:
+==1969133==    definitely lost: 32 bytes in 1 blocks
+==1969133==    indirectly lost: 32 bytes in 1 blocks
+==1969133==      possibly lost: 0 bytes in 0 blocks
+==1969133==    still reachable: 0 bytes in 0 blocks
+==1969133==         suppressed: 0 bytes in 0 blocks
+==1969133==
+==1969133== For lists of detected and suppressed errors, rerun with: -s
+==1969133== ERROR SUMMARY: 1 errors from 1 contexts (suppressed: 0 from 0)
+```
+
 C++11 includes a solution: **weak** smart pointers: these only **observe** an object but do not influence its lifetime. 
 
 ### Weak pointer `std::weak_ptr<>`
@@ -291,6 +395,60 @@ A ring of objects can point to each other with `weak_ptrs`, which point to the m
 ![cyclic reference solution](cyclic_reference_solution.png)
 
 If the shared pointer container is emptied, the three objects in the ring are automatically deleted because no other shared pointers point to them; weak pointers, like raw pointers, do not keep the pointed-to object "alive" and hence cycle problem has been resolved.
+
+**Solution to the problem**
+The solution to the cyclic reference problem example is to decide who owns who. Lets say `MyClassA` owns `MyClassB` but `MyClassB` does not own `MyClassA` then we replace the reference to `MyClassA` in `MyClassB` with a `weak_ptr` like 
+
+```C++
+#include <memory>
+#include <iostream>
+
+struct MyClassB;
+struct MyClassA
+{
+    std::shared_ptr<MyClassB> b;
+    ~MyClassA() { std::cout << "MyClassA::~MyClassA()\n"; }
+};
+
+struct MyClassB
+{
+    std::weak_ptr<MyClassA> a;
+    ~MyClassB() { std::cout << "MyClassB::~MyClassB()\n"; }
+};
+
+void useMyClassAnMyClassB()
+{
+    auto a = std::make_shared<MyClassA>();
+    auto b = std::make_shared<MyClassB>();
+    a->b = b;
+    b->a = a;
+}
+
+int main()
+{
+    useMyClassAnMyClassB();
+    std::cout << "Finished using A and B\n";
+}
+
+/*OUTPUT
+MyClassA::~MyClassA()
+MyClassB::~MyClassB()
+Finished using A and B
+*/
+```
+Then if we run the program we see that `a` and `b` are destroyed as we expect. And memory leak summary (for the above code) below shows that, no memory is leaked and the objects are destroyed gracefully.
+
+```bash
+==1969207== HEAP SUMMARY:
+==1969207==     in use at exit: 0 bytes in 0 blocks
+==1969207==   total heap usage: 4 allocs, 4 frees, 73,792 bytes allocated
+==1969207==
+==1969207== All heap blocks were freed -- no leaks are possible
+==1969207==
+==1969207== For lists of detected and suppressed errors, rerun with: -s
+==1969207== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+```
+
 
 The definition of weak_ptr is designed to make it relatively foolproof, so as a result there is very little you can do directly with a `weak_ptr`. For instance, you can't dereference it; neither `operator*` nor `operator->` is defined for a `weak_ptr`, you can not get pointer to an object - there is no `get()` function.
 
