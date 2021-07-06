@@ -279,7 +279,7 @@ int main()
 From performance perspective taking `shared_ptr` by copy or by reference make significant difference. 
 
 ```C++
-void functionbyReference(std::shared_ptr<int> &refPtr)
+void functionbyReference(std::shared_ptr<int> &refPtr) // Not a good practice
 {
     std::cout << "refPtr.use_count(): " << refPtr.use_count() << std::endl;// prints 1
 }
@@ -304,6 +304,8 @@ int main()
 ```
 
 The reference count is incremented a when function takes `shared_ptr` by copy; since incrementing and decrementing the reference count is an expensive operation and hence results in a performance difference. The quick [benchmark test](https://quick-bench.com/q/6HlGvXHREhCsNr0hulCgZ-padiQ) states the measurable difference in performance (almost twice).
+
+>**_NOTE:_** The best practice in C++ is always to have clearly defined ownership semantics for your objects. The pass by reference of the smart pointer defy this rule; Hence, copy the shared pointer when a new function or object needs to share ownership of the pointee.
 
 
 ### Cyclic reference problem with `shared_ptr`
